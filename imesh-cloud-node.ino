@@ -1,3 +1,4 @@
+//#define BLYNK_PRINT Serial
 #include <SoftwareSerial.h>
 #include "ESP8266WiFi.h"
 #include "ArduinoJson.h"
@@ -7,6 +8,7 @@
 #include "ifarm.h"
 //Blynk Params-->
 SimpleTimer timer;
+WidgetTerminal terminal(V51);
 //<---
 //ThingSpeak params--->
 char* mqttServer = "mqtt.thingspeak.com";
@@ -23,6 +25,10 @@ void setup() {
   pinMode(D5, INPUT);
   pinMode(D7, OUTPUT);
   Serial.begin(115200);   //Initialize hardware serial with baudrate of 115200
+  //BLYNK TEST-->
+  Blynk.begin(blynkAuth, ssid, pwd);
+  terminal.println("BLYNK[OK]: Blynk Initialized!");
+  //<---
   //WiFi Connection Initialization -->
   Serial.printf("\n\n");
   Serial.print("WIFI: connecting");
@@ -40,14 +46,17 @@ void setup() {
   if(client.connect((char*) clientName.c_str())) {
     Serial.println("MQTT: connected");
     Serial.println("MQTT[\"TOPIC\"]: " + String(topic));
-
+    terminal.println("BLYNK[OK]: MQTT connected!");
     if(client.publish(topic, "hello from ESP8266")) {
       Serial.println("MQTT: Publish OK!");
+      terminal.println("BLYNK[OK]: MQTT Initialized!");
     } else {
       Serial.println("MQTT: Publish falied");
+      terminal.println("BLYNK[ERR]: MQTT Initialization failed!");
     }
   } else {
     Serial.println("MQTT: connection failed");
+    terminal.println("BLYNK[ERR]: MQTT connection failed!");
     abort();
   }
   //<---
@@ -57,8 +66,17 @@ void setup() {
   swSerial.begin(4800);    
   Serial.println("sw-SERIAL: Software serial Inintialized --> Start Gathering Data");
   //<---
+  terminal.println("BLYNK[OK]: BRIDGE data trasfering started!");
+  terminal.flush();
+  timer.setInterval(2000, mqttDataReader);
 }
 void loop() {
+  Blynk.run();
+  timer.run();
+}
+
+//Additional Function-->
+void mqttDataReader() {
   while (swSerial.available() > 0)
   {
       char c = swSerial.read();  //gets one byte from serial buffer⸮
@@ -68,6 +86,8 @@ void loop() {
     {
       Serial.println("SERIAL: " + DataString);
       Serial.println("SERIAL: data length: [" + String(DataString.length()) + "]");
+      terminal.println("BLYNK[OK]: Incoming Data: " + DataString);
+      terminal.flush();
       JsonObject& payload = jsonBuffer.parseObject(DataString);
       if(payload.containsKey("topic") && payload.containsKey("temp") && payload.containsKey("humid")) {
         String str = "";
@@ -88,8 +108,12 @@ void loop() {
           Serial.println("MQTT: Sending " + mqttMsg);
           if(client.publish(topic, (char*) mqttMsg.c_str())) {
             Serial.println("MQTT: Publish OK!");
+            Serial.println("BLYNK[OK]: Sending data to BLYNK");
+            terminal.println("TEMP: " + temp);
+            terminal.println("HUMID: " + humid);
           } else {
             Serial.println("MQTT: Publish Failed");
+            terminal.println("BLYNK[ERR]: Data Sending Failed!");
           }
         }
       }
@@ -97,6 +121,5 @@ void loop() {
       Serial.println(".");
     }
   DataString = "";
-  delay(2000);
 }
-
+//<--
