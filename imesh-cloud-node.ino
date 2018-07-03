@@ -2,11 +2,13 @@
 #include "ESP8266WiFi.h"
 #include "ArduinoJson.h"
 #include "PubSubClient.h"
-
+#include <BlynkSimpleEsp8266.h>
+#include <SimpleTimer.h>
+#include "ifarm.h"
+//Blynk Params-->
+SimpleTimer timer;
+//<---
 //ThingSpeak params--->
-const char* ssid = "ssid";
-const char* pwd = "pwd";
-//char* topic="channels/<channelsID>/publish/<WriteAPIKey>";
 char* mqttServer = "mqtt.thingspeak.com";
 //<---
 //WiFiSetting params--->
@@ -17,7 +19,6 @@ SoftwareSerial swSerial(D5, D7); //Define hardware connections RX, TX
 
 String DataString = "";
 DynamicJsonBuffer jsonBuffer;
-
 void setup() {
   pinMode(D5, INPUT);
   pinMode(D7, OUTPUT);
@@ -33,10 +34,9 @@ void setup() {
   Serial.println();
   Serial.println("WIFI: connected!");
   //<---
-  
   //MQTT CONNECTION TEST -->
   Serial.println("MQTT: connecting");
-  String clientName = "ESP-Thingspeak";
+  String clientName = "imesh";
   if(client.connect((char*) clientName.c_str())) {
     Serial.println("MQTT: connected");
     Serial.println("MQTT[\"TOPIC\"]: " + String(topic));
@@ -57,7 +57,6 @@ void setup() {
   swSerial.begin(4800);    
   Serial.println("sw-SERIAL: Software serial Inintialized --> Start Gathering Data");
   //<---
-  
 }
 void loop() {
   while (swSerial.available() > 0)
@@ -73,7 +72,26 @@ void loop() {
       if(payload.containsKey("topic") && payload.containsKey("temp") && payload.containsKey("humid")) {
         String str = "";
         payload.printTo(str);
-        Serial.printf("JSON: %s", str.c_str());
+        Serial.printf("JSON: %s\n", str.c_str());
+        String temp = "";
+        payload["temp"].printTo(temp);
+        String humid = "";
+        payload["humid"].printTo(humid);
+        humid.replace("\"", "");
+        temp.replace("\"", "");
+        String mqttMsg = "field1=";
+        mqttMsg += temp;
+        mqttMsg += "&field2=";
+        mqttMsg += humid;
+//        mqttMsg += "&status=MQTTPUBLISH";
+        if(client.connected()) {
+          Serial.println("MQTT: Sending " + mqttMsg);
+          if(client.publish(topic, (char*) mqttMsg.c_str())) {
+            Serial.println("MQTT: Publish OK!");
+          } else {
+            Serial.println("MQTT: Publish Failed");
+          }
+        }
       }
     } else {
       Serial.println(".");
@@ -81,3 +99,4 @@ void loop() {
   DataString = "";
   delay(2000);
 }
+
